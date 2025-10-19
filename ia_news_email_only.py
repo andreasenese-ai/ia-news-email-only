@@ -17,9 +17,16 @@ from email.mime.text import MIMEText
 import smtplib
 
 RSS_FEEDS = [
-    "https://news.google.com/rss/search?q=intelligenza+artificiale&hl=it&gl=IT&ceid=IT:it",
+    "https://openai.com/blog/rss",
+    "https://blogs.microsoft.com/ai/feed/",
+    "https://ai.googleblog.com/feeds/posts/default",
+    "https://ai.facebook.com/blog/rss/",
+    "https://blogs.nvidia.com/feed/",
+    "https://aws.amazon.com/blogs/machine-learning/feed/",
     "https://news.google.com/rss/search?q=AI+enterprise&hl=en-US&gl=US&ceid=US:en",
+    "https://news.google.com/rss/search?q=intelligenza+artificiale+impresa&hl=it&gl=IT&ceid=IT:it"
 ]
+
 MAX_ITEMS_PER_RUN = 8
 SEEN_FILE = "seen.json"
 LAST_SENT_FILE = "last_sent.json"
