@@ -20,11 +20,23 @@ RSS_FEEDS = [
     "https://news.google.com/rss/search?q=intelligenza+artificiale&hl=it&gl=IT&ceid=IT:it",
     "https://news.google.com/rss/search?q=AI+enterprise&hl=en-US&gl=US&ceid=US:en",
 ]
-MAX_ITEMS_PER_RUN = 25
+MAX_ITEMS_PER_RUN = 8
 SEEN_FILE = "seen.json"
 LAST_SENT_FILE = "last_sent.json"
 TZ = ZoneInfo("Europe/Rome")
 USER_AGENT = "PRAMAC-IA-NewsAgent/1.0"
+# Selezione "principali": poche regole efficaci
+TOP_K = 8  # quanti articoli mandare nella mail
+PRIORITY_TERMS = [
+    "invest", "funding", "finanziament", "partnership", "acquisition", "acquisiz",
+    "announces", "lancia", "launch", "regulation", "EU AI Act", "deal", "accordo",
+    "Oracle", "OpenAI", "Microsoft", "Google", "NVIDIA", "AWS", "Meta"
+]
+DOWNWEIGHT_TERMS = [
+    "opinion", "opinione", "commento", "podcast", "newsletter", "recap settimanale",
+    "how to", "tutorial", "corso"
+]
+PER_SOURCE_LIMIT = 1  # non più di 3 dallo stesso dominio/sorgente
 
 SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -69,6 +81,23 @@ def fetch_snippet(url: str, max_chars: int = 260) -> str:
         return (txt[:max_chars] + ("…" if len(txt) > max_chars else ""))
     except Exception:
         return ""
+def score_item(it: dict) -> float:
+    title = f"{it.get('title','')} {it.get('snippet','')}".lower()
+    score = 0.0
+    # priorità per termini “caldi”
+    for term in PRIORITY_TERMS:
+        if term.lower() in title:
+            score += 2.0
+    # penalizza contenuti meno “notizia”
+    for term in DOWNWEIGHT_TERMS:
+        if term.lower() in title:
+            score -= 1.5
+    # boost se la sorgente è nota/ufficiale
+    src = (it.get("source") or "").lower()
+    for big in ["openai", "microsoft", "google", "nvidia", "aws", "meta", "ft", "bloomberg", "reuters", "il sole 24 ore", "ansa"]:
+        if big in src:
+            score += 1.0
+    return score
 
 def gather_items():
     seen = set(load_json(SEEN_FILE, []))
@@ -96,7 +125,18 @@ def gather_items():
                 "published": published,
                 "snippet": snippet
             })
-    return items
+       # ordina per punteggio
+    items.sort(key=score_item, reverse=True)
+    # limita per sorgente
+    picked, per_src = [], {}
+    for it in items:
+        src = (it.get("source") or "unknown").lower()
+        per_src[src] = per_src.get(src, 0) + 1
+        if per_src[src] <= PER_SOURCE_LIMIT:
+            picked.append(it)
+        if len(picked) >= TOP_K:
+            break
+    return picked
 
 def build_email(items):
     if not items:
